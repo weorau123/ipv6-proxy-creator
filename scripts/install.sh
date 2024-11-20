@@ -1,4 +1,5 @@
 #!/bin/sh
+
 random() {
   tr </dev/urandom -dc A-Za-z0-9 | head -c5
   echo
@@ -11,8 +12,9 @@ gen64() {
   }
   echo "$1:$(ip64):$(ip64):$(ip64):$(ip64)"
 }
+
 install_3proxy() {
-  echo "installing 3proxy"
+  echo "Installing 3proxy"
   URL="https://github.com/z3APA3A/3proxy/archive/3proxy-0.8.6.tar.gz"
   wget -qO- $URL | bsdtar -xvf-
   cd 3proxy-3proxy-0.8.6
@@ -51,36 +53,10 @@ $(awk -F "/" '{print $3 ":" $4 ":" $1 ":" $2 }' ${WORKDATA})
 EOF
 }
 
-upload_proxy() {
-  #local PASS=$(random)
-  #zip --password $PASS proxy.zip proxy.txt
-  #URL=$(curl -s --upload-file proxy.zip https://transfer.sh/proxy.zip)
-
-  #echo "Proxy is ready! Format IP:PORT:LOGIN:PASS"
-  #echo "Download zip archive from: ${URL}"
-  #echo "Password: ${PASS}"
-  
-  sed -n '1,1000p' proxy.txt
-
-}
-
 install_jq() {
   wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
   chmod +x ./jq
   cp jq /usr/bin
-}
-
-upload_2file() {
-  #local PASS=$(random)
-  #zip --password $PASS proxy.zip proxy.txt
-  #JSON=$(curl -F "file=@proxy.zip" https://file.io)
-  #URL=$(echo "$JSON" | jq --raw-output '.link')
-
-  #echo "Proxy is ready! Format IP:PORT:LOGIN:PASS"
-  #echo "Download zip archive from: ${URL}"
-  #echo "Password: ${PASS}"
-  
-  sed -n '1,1000p' proxy.txt
 }
 
 gen_data() {
@@ -100,34 +76,42 @@ gen_ifconfig() {
 $(awk -F "/" '{print "ifconfig eth0 inet6 add " $5 "/64"}' ${WORKDATA})
 EOF
 }
-echo "installing apps"
-yum -y install gcc net-tools bsdtar zip >/dev/null
 
+# Cài đặt các phần mềm cần thiết
+echo "Installing necessary applications"
+yum -y install gcc net-tools bsdtar zip wget curl >/dev/null
+
+# Cài đặt 3proxy
 install_3proxy
 
-echo "working folder = /home/proxy-installer"
+# Thiết lập thư mục làm việc
 WORKDIR="/home/proxy-installer"
 WORKDATA="${WORKDIR}/data.txt"
-mkdir $WORKDIR && cd $_
+mkdir -p $WORKDIR && cd $_
 
+# Lấy IP nội bộ và IP công cộng (IPv6 và IPv4)
 IP4=$(curl -4 -s icanhazip.com)
 IP6=$(curl -6 -s icanhazip.com | cut -f1-4 -d':')
 
-echo "Internal ip = ${IP4}. Exteranl sub for ip6 = ${IP6}"
+echo "Internal IP = ${IP4}. External IPv6 prefix = ${IP6}"
 
-echo "How many proxy do you want to create? Example 500"
+# Nhập số lượng proxy muốn tạo
+echo "How many proxies do you want to create? Example: 500"
 read COUNT
 
-FIRST_PORT=10001
-LAST_PORT=$((($FIRST_PORT + $COUNT)-1))
+FIRST_PORT=10000
+LAST_PORT=$(($FIRST_PORT + $COUNT))
 
+# Tạo dữ liệu cho các proxy
 gen_data >$WORKDIR/data.txt
 gen_iptables >$WORKDIR/boot_iptables.sh
 gen_ifconfig >$WORKDIR/boot_ifconfig.sh
 chmod +x boot_*.sh /etc/rc.local
 
+# Tạo file cấu hình 3proxy
 gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 
+# Thêm script vào /etc/rc.local để tự động chạy khi khởi động
 cat >>/etc/rc.local <<EOF
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
@@ -135,10 +119,10 @@ ulimit -n 10048
 service 3proxy start
 EOF
 
+# Chạy script khởi động
 bash /etc/rc.local
 
+# Tạo file proxy.txt với thông tin proxy cho người dùng
 gen_proxy_file_for_user
 
-# upload_proxy
-
-install_jq && upload_2file
+echo "Proxy configuration and file generation completed."
